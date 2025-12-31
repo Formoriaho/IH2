@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INVESTHAUS | THE MANOR HQ</title>
+    
+    <!-- Core Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons (Universal UMD Build) -->
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        :root {
+            --gold: #f59e0b;
+            --bg: #020202;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg); 
+            color: #d4d4d8; 
+            margin: 0; 
+            overflow: hidden;
+        }
+
+        .font-mono { font-family: 'JetBrains+Mono', monospace; }
+
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-ticker { animation: ticker 60s linear infinite; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        .fade-in { 
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        }
+        
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(245, 158, 11, 0.5) !important;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+        }
+
+        input[type="range"] {
+            accent-color: #f59e0b;
+        }
+
+        .gold-gradient {
+            background: linear-gradient(135deg, #f59e0b 0%, #78350f 100%);
+        }
+        
+        .manifesto-stroke {
+            -webkit-text-stroke: 1px rgba(255, 255, 255, 0.1);
+            color: transparent;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const Icon = ({ name, size = 20, className = "", strokeWidth = 2 }) => {
+            const iconData = window.lucide ? window.lucide.icons[name] : null;
+            if (!iconData) return <div style={{ width: size, height: size }} className={className} />;
+            const children = iconData[2] || [];
+            return (
+                <svg
+                    width={size}
+                    height={size}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={className}
+                    dangerouslySetInnerHTML={{ 
+                        __html: children.map(tag => {
+                            const [tagName, attrs] = tag;
+                            const attrStr = Object.entries(attrs)
+                                .map(([k, v]) => `${k}="${v}"`)
+                                .join(' ');
+                            return `<${tagName} ${attrStr}></${tagName}>`;
+                        }).join('') 
+                    }}
+                />
+            );
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('manifesto');
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [sessionStatus, setSessionStatus] = useState({ london: false, ny: false, tokyo: false });
+
+            // Simulation Engine for "Live" Prices
+            // In a production environment, you would use: fetch(`https://api.twelvedata.com/price?symbol=...&apikey=YOUR_KEY`)
+            const [tickerAssets, setTickerAssets] = useState([
+                { symbol: 'NAS100', price: 16942.50, change: 1.42, decimals: 2 },
+                { symbol: 'SPX500', price: 4845.15, change: 0.85, decimals: 2 },
+                { symbol: 'XAUUSD', price: 2062.10, change: -0.22, decimals: 2 },
+                { symbol: 'BTCUSD', price: 43250.00, change: 4.51, decimals: 2 },
+                { symbol: 'EURUSD', price: 1.09245, change: 0.12, decimals: 5 },
+                { symbol: 'GBPUSD', price: 1.27152, change: -0.34, decimals: 5 },
+                { symbol: 'US30', price: 37850.00, change: 0.55, decimals: 2 },
+                { symbol: 'ETHUSD', price: 2340.10, change: 2.15, decimals: 2 }
+            ]);
+
+            useEffect(() => {
+                const tickInterval = setInterval(() => {
+                    setTickerAssets(prev => prev.map(asset => {
+                        // More realistic volatility (Crypto and Indices move more than FX)
+                        const volMap = { 'BTCUSD': 4.5, 'ETHUSD': 1.2, 'NAS100': 0.8, 'US30': 0.6, 'EURUSD': 0.00005, 'GBPUSD': 0.00005 };
+                        const volatility = volMap[asset.symbol] || 0.15;
+                        const movement = (Math.random() - 0.5) * volatility;
+                        const newPrice = asset.price + movement;
+                        return { ...asset, price: newPrice };
+                    }));
+                }, 1000);
+                return () => clearInterval(tickInterval);
+            }, []);
+
+            // Real-Time Session Clocks
+            useEffect(() => {
+                const updateClocks = () => {
+                    const now = new Date();
+                    setCurrentTime(now);
+                    const utcHour = now.getUTCHours();
+                    
+                    setSessionStatus({
+                        london: utcHour >= 8 && utcHour < 16,
+                        ny: utcHour >= 13 && utcHour < 21,
+                        tokyo: utcHour >= 0 && utcHour < 8
+                    });
+                };
+                updateClocks();
+                const timer = setInterval(updateClocks, 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            // User States
+            const [trades, setTrades] = useState([
+                { ticker: 'NAS100', pnl: '+$6,800', side: 'Long', timestamp: 'Dec 30' },
+                { ticker: 'BTC/USD', pnl: '+$12,500', side: 'Long', timestamp: 'Dec 29' },
+                { ticker: 'XAUUSD', pnl: '-$850', side: 'Short', timestamp: 'Dec 28' }
+            ]);
+
+            const [dailyData, setDailyData] = useState({
+                bias: 'Neutral',
+                narrative: '',
+                watchlist: [{ ticker: 'NAS100', level: '16950', bias: 'LONG' }],
+                rules: { sl: false, revenge: false, journal: false }
+            });
+
+            const [audit, setAudit] = useState({
+                discipline: 80,
+                patience: 70,
+                clarity: 90,
+                notes: ''
+            });
+
+            const menuItems = [
+                { id: 'manifesto', label: 'MANIFESTO', icon: "Shield", sub: 'The Code & Culture' },
+                { id: 'daily', label: 'DAILY EDGE', icon: "Zap", sub: 'Strategic Execution' },
+                { id: 'weekly', label: 'WEEKLY SYNC', icon: "Calendar", sub: 'Review & Refresh' },
+                { id: 'journal', label: 'TRADE VAULT', icon: "Lock", sub: 'Performance Logs' },
+                { id: 'signals', label: 'LIVE SIGNALS', icon: "Radio", sub: 'Alpha Setups' },
+                { id: 'desk', label: 'ECONOMIC DESK', icon: "Globe", sub: 'Macro Impact' },
+                { id: 'education', label: 'THE ACADEMY', icon: "BookOpen", sub: 'Intel Archives' },
+            ];
+
+            return (
+                <div className="flex h-screen bg-[#020202] text-zinc-300 overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-64 border-r border-white/5 flex flex-col p-6 bg-[#050505] z-30 shadow-2xl">
+                        <div className="mb-12 flex flex-col items-center">
+                            <div className="relative group cursor-pointer">
+                                <div className="absolute -inset-2 bg-gradient-to-r from-amber-500 to-amber-900 rounded-sm blur opacity-20 group-hover:opacity-60 transition duration-1000"></div>
+                                <div className="relative w-16 h-16 bg-black border border-amber-500/40 rounded-sm flex items-center justify-center">
+                                    <span className="text-amber-500 font-black text-2xl italic uppercase tracking-tighter">H</span>
+                                </div>
+                            </div>
+                            <h1 className="text-2xl font-black tracking-[0.2em] text-white uppercase italic mt-6 leading-none text-center">Investhaus</h1>
+                            <p className="text-[10px] text-amber-500 font-black tracking-[0.4em] uppercase mt-2 italic text-center leading-tight">THE MANOR <br/> <span className="opacity-50 text-[8px]">HQ</span></p>
+                        </div>
+
+                        <nav className="flex-1 space-y-8 overflow-y-auto no-scrollbar text-left text-zinc-400">
+                            <div>
+                                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em] mb-4 px-4 flex items-center gap-2">
+                                    <Icon name="Activity" size={12} /> ACCESS TERMINAL
+                                </p>
+                                {menuItems.slice(0, 6).map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setActiveTab(item.id)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-sm transition-all duration-300 mb-1 ${
+                                            activeTab === item.id 
+                                                ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.1)]' 
+                                                : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-200'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-start text-left">
+                                            <div className="flex items-center space-x-3">
+                                                <Icon name={item.icon} size={18} />
+                                                <span className="font-black tracking-widest uppercase text-[10px] italic">{item.label}</span>
+                                            </div>
+                                            {activeTab === item.id && <span className="text-[7px] mt-1 ml-7 text-amber-500/50 font-bold tracking-tighter uppercase">{item.sub}</span>}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                            <div>
+                                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em] mb-4 px-4 flex items-center gap-2">
+                                    <Icon name="Crown" size={12} /> LEGACY INTEL
+                                </p>
+                                {menuItems.slice(6).map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setActiveTab(item.id)}
+                                        className={`w-full flex items-center justify-between px-4 py-4 rounded-sm transition-all duration-300 mb-1 ${
+                                            activeTab === item.id 
+                                                ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500' 
+                                                : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-200'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-start text-left text-zinc-400">
+                                            <div className="flex items-center space-x-3">
+                                                <Icon name={item.icon} size={18} />
+                                                <span className="font-black tracking-widest uppercase text-[10px] italic">{item.label}</span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </nav>
+
+                        <div className="mt-auto pt-6 border-t border-white/5">
+                            <div className="p-4 bg-zinc-900/40 border border-white/5 rounded-sm relative overflow-hidden">
+                                <div className="flex items-center space-x-3 text-left">
+                                    <div className="w-10 h-10 rounded-sm bg-amber-500 flex items-center justify-center text-black font-black text-xs italic">IH</div>
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-[10px] font-black text-white truncate uppercase tracking-tighter italic">Legacy Architect</p>
+                                        <p className="text-[8px] text-amber-500 font-mono truncate uppercase tracking-[0.1em]">EST. IN EXCELLENCE</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Main Workspace */}
+                    <main className="flex-1 overflow-y-auto relative bg-[#020202]">
+                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/[0.04] blur-[150px] pointer-events-none"></div>
+
+                        <header className="px-10 py-7 flex justify-between items-center sticky top-0 bg-[#020202]/95 backdrop-blur-xl z-20 border-b border-white/5">
+                            <div className="flex items-center space-x-10">
+                                <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic flex items-center gap-4">
+                                   <span className="text-amber-500 text-sm">/</span> {menuItems.find(i => i.id === activeTab)?.label}
+                                </h2>
+                                <div className="hidden lg:flex items-center space-x-8 text-[10px] font-black uppercase tracking-[0.2em]">
+                                    <div className={`flex items-center gap-2 ${sessionStatus.ny ? 'text-green-500' : 'text-zinc-700'}`}>
+                                        <Icon name="Globe" size={13}/> NY: <span className="font-bold">{sessionStatus.ny ? 'OPEN' : 'CLOSED'}</span>
+                                    </div>
+                                    <div className={`flex items-center gap-2 ${sessionStatus.london ? 'text-green-500' : 'text-zinc-700'}`}>
+                                        <Icon name="Globe" size={13}/> LDN: <span className="font-bold">{sessionStatus.london ? 'OPEN' : 'CLOSED'}</span>
+                                    </div>
+                                    <div className={`flex items-center gap-2 ${sessionStatus.tokyo ? 'text-green-500' : 'text-zinc-700'}`}>
+                                        <Icon name="Globe" size={13}/> TKY: <span className="font-bold">{sessionStatus.tokyo ? 'OPEN' : 'CLOSED'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-6">
+                                <div className="flex items-center gap-2 text-zinc-500 font-mono text-[11px] uppercase tracking-widest bg-white/5 px-4 py-2 rounded-sm border border-white/5">
+                                    <Icon name="Clock" size={14} className="text-amber-500" />
+                                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                                </div>
+                                <div className="px-4 py-2 bg-amber-500 text-black rounded-sm text-[10px] font-black tracking-widest uppercase italic shadow-[0_0_20px_rgba(245,158,11,0.2)]">MANOR HQ</div>
+                            </div>
+                        </header>
+
+                        <div className="p-10 max-w-6xl mx-auto pb-40">
+                            {activeTab === 'manifesto' && <ManifestoView />}
+                            {activeTab === 'daily' && <DailyEdgeView data={dailyData} setDailyData={setDailyData} />}
+                            {activeTab === 'weekly' && <WeeklySyncView audit={audit} setAudit={setAudit} />}
+                            {activeTab === 'journal' && <TradeVaultView trades={trades} addTrade={(t) => setTrades([t, ...trades])} />}
+                            {activeTab === 'signals' && <SignalsView />}
+                            {activeTab === 'desk' && <DeskView tickerAssets={tickerAssets} />}
+                            {activeTab === 'education' && <EducationView />}
+                        </div>
+
+                        {/* Scrolling Ticker */}
+                        <div className="fixed bottom-0 right-0 left-64 h-12 bg-black border-t border-white/10 flex items-center overflow-hidden z-20">
+                            <div className="flex whitespace-nowrap animate-ticker py-2 text-[11px] font-mono font-bold">
+                                {Array(5).fill(tickerAssets).flat().map((asset, i) => (
+                                    <span key={i} className="mx-10 uppercase flex items-center gap-4">
+                                        <span className="text-amber-500 font-black italic tracking-tighter">{asset.symbol}</span> 
+                                        <span className="text-white">${asset.price.toLocaleString(undefined, {minimumFractionDigits: asset.decimals, maximumFractionDigits: asset.decimals})}</span> 
+                                        <span className={asset.change >= 0 ? 'text-green-500' : 'text-red-500'}>{asset.change >= 0 ? '+' : ''}{asset.change}%</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const ManifestoView = () => (
+            <div className="fade-in max-w-6xl py-12 text-left text-zinc-100">
+                <div className="inline-flex items-center gap-6 mb-10">
+                    <div className="h-[2px] w-16 bg-amber-500"></div>
+                    <span className="text-amber-500 font-black text-xs uppercase tracking-[0.6em] italic text-left">The Code of the Manor</span>
+                </div>
+                
+                <div className="relative mb-20">
+                    <h1 className="text-7xl md:text-[10rem] font-black text-white leading-[0.75] italic uppercase opacity-[0.98] tracking-tighter">
+                        THE MARKET <br/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-500 to-amber-800 font-black italic">HAS A CODE</span>
+                    </h1>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 border-l-2 border-amber-500/20 pl-16 py-8 relative text-left">
+                    <div className="absolute top-0 left-[-3px] w-1.5 h-48 bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)]"></div>
+                    
+                    <div className="space-y-12 text-left">
+                        <div className="space-y-6">
+                            <p className="text-3xl leading-snug font-black italic uppercase tracking-tight text-white">
+                                "The world sees noise. We see geometric inevitability."
+                            </p>
+                            <p className="text-zinc-500 text-lg leading-relaxed font-medium uppercase tracking-[0.1em] italic opacity-80">
+                                At Investhaus, we don't gamble. We architect. We wait for the signal. We execute without hesitation. We exit without regret.
+                            </p>
+                        </div>
+                        
+                        <div className="p-8 glass-panel border border-amber-500/20 rounded-sm shadow-2xl text-left">
+                            <h4 className="text-amber-500 font-black text-xs uppercase tracking-[0.4em] mb-4 italic">Operational Intent</h4>
+                            <p className="text-zinc-400 leading-relaxed text-sm uppercase font-bold tracking-widest">
+                                Sovereignty isn't a goal; it's a prerequisite. We operate with absolute precision, move with purpose, and maintain detachment from noise. The process is the only prize worth claiming.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-12">
+                        {[
+                            { title: "THE PSYCHOLOGY OF WEALTH", desc: "Trading is 10% charts and 90% character. The market is a mirror—it doesn't just show you price, it shows you who you really are. We master our emotions before we master the markets." },
+                            { title: "THE FORTRESS PRINCIPLE", desc: "Defense wins championships. We don't trade to get rich; we trade to stay free. We protect our base at all costs so we can compound our growth into a legacy." },
+                            { title: "RADICAL OWNERSHIP", desc: "Every loss is yours to own. Every win is the result of your process. We accept 100% accountability for the trade, the risk, and the mindset." },
+                            { title: "EXECUTION OVER EMOTION", desc: "We operate like machines. We exit without hesitation. We wait with absolute patience. If the setup isn't there, we stay on hands." },
+                            { title: "LONG TERM VISION", desc: "We aren't here for a day. We are here for generations. Every trade is just one sample in a life-long sequence of mastery." }
+                        ].map((point, idx) => (
+                            <section key={idx} className="group text-left">
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className="text-amber-500 text-lg group-hover:scale-125 transition-transform">◆</div>
+                                    <h4 className="text-white font-black text-sm uppercase tracking-widest italic">{point.title}</h4>
+                                </div>
+                                <p className="text-[11px] text-zinc-500 leading-relaxed uppercase font-black tracking-[0.1em] opacity-80 pl-8 text-left">
+                                    {point.desc}
+                                </p>
+                            </section>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const SignalsView = () => {
+            const activeSignals = [
+                { asset: 'XAU/USD', bias: 'LONG', zone: '2062.10 - 2065.00', setup: 'Liquidity Grab + FVG Fill', risk: '1.5%', status: 'ACTIVE' },
+                { asset: 'NAS100', bias: 'SHORT', zone: '16950 - 17000', setup: 'Bearish Orderblock Retest', risk: '1.0%', status: 'MONITORING' },
+                { asset: 'BTC/USD', bias: 'LONG', zone: '43100 - 43300', setup: 'Higher Timeframe HL', risk: '2.0%', status: 'PENDING' }
+            ];
+
+            return (
+                <div className="fade-in space-y-12 text-left">
+                    <div className="border-b border-white/5 pb-10">
+                        <h3 className="text-5xl font-black text-white italic uppercase tracking-tighter">Live Signal Stream</h3>
+                        <p className="text-[11px] text-zinc-600 font-black uppercase tracking-[0.4em] mt-2 italic text-left">Institutional Grade Deployments</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {activeSignals.map((sig, i) => (
+                            <div key={i} className={`p-8 rounded-sm transition-all group relative overflow-hidden ${sig.status === 'ACTIVE' ? 'bg-amber-500/10 border-2 border-amber-500/30' : 'bg-white/[0.02] border border-white/5'}`}>
+                                {sig.status === 'ACTIVE' && (
+                                    <div className="absolute top-0 right-0 p-3">
+                                        <div className="flex items-center gap-2 text-[9px] font-black text-amber-500 uppercase italic">
+                                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                                            Active
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="mb-6">
+                                    <h4 className="text-3xl font-black text-white italic tracking-tighter uppercase">{sig.asset}</h4>
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-sm mt-2 inline-block ${sig.bias === 'LONG' ? 'bg-green-500 text-black' : 'bg-red-500 text-white'}`}>{sig.bias}</span>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-1">Entry Zone</p>
+                                        <p className="text-sm font-mono text-white font-bold tracking-tighter">{sig.zone}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-1">Setup Type</p>
+                                        <p className="text-xs text-zinc-400 font-black uppercase italic">{sig.setup}</p>
+                                    </div>
+                                    <div className="flex justify-between items-end pt-4 border-t border-white/5">
+                                        <div>
+                                            <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Recommended Risk</p>
+                                            <p className="text-xl font-black text-amber-500 italic">{sig.risk}</p>
+                                        </div>
+                                        <Icon name="Target" className="text-zinc-800" size={30} />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const DeskView = ({ tickerAssets }) => (
+            <div className="fade-in space-y-12 text-left">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 text-left">
+                    <div className="p-10 bg-zinc-900/10 border border-white/5 rounded-sm shadow-xl text-left">
+                        <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-[0.4em] mb-8 italic">High Impact Events</h4>
+                        <div className="space-y-6">
+                            {[
+                                { event: 'USD: Non-Farm Payrolls', impact: 'HIGH', time: 'Friday 08:30' },
+                                { event: 'USD: CPI Data', impact: 'HIGH', time: 'Tuesday 08:30' }
+                            ].map((e, i) => (
+                                <div key={i} className="flex justify-between items-center border-b border-white/5 pb-4 text-left">
+                                    <div className="text-left">
+                                        <p className="text-sm font-black italic text-white uppercase text-left">{e.event}</p>
+                                        <p className="text-[10px] font-bold text-zinc-500 uppercase text-left">{e.time}</p>
+                                    </div>
+                                    <span className="text-[9px] font-black text-red-500 bg-red-500/10 px-2 py-1 border border-red-500/20 text-left">{e.impact}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="p-10 bg-zinc-900/10 border border-white/5 rounded-sm flex flex-col justify-center items-center text-center">
+                        <Icon name="Globe" size={40} className="text-zinc-700 mb-4" />
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] text-center">Current Volatility</p>
+                        <p className="text-3xl font-black italic text-white uppercase tracking-tighter mt-2 text-center text-green-500">EXCHANGE BRIDGE: ONLINE</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const DailyEdgeView = ({ data, setDailyData }) => {
+            const [calc, setCalc] = useState({ account: 10000, risk: 1, sl: 10, result: 0 });
+            const calculatePosition = () => {
+                const riskAmt = parseFloat(calc.account) * (parseFloat(calc.risk) / 100);
+                const size = riskAmt / parseFloat(calc.sl);
+                setCalc({ ...calc, result: isNaN(size) ? 0 : size.toFixed(2) });
+            };
+
+            return (
+                <div className="space-y-10 fade-in text-left">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left">
+                        <div className="bg-[#080808] border border-white/10 p-8 rounded-sm lg:col-span-1 text-left">
+                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-8 italic text-left text-zinc-400">Market Bias</p>
+                            <div className="flex flex-col gap-3">
+                                {['Bullish', 'Neutral', 'Bearish'].map(s => (
+                                    <button 
+                                        key={s} 
+                                        onClick={() => setDailyData({...data, bias: s})}
+                                        className={`w-full py-4 text-[10px] font-black uppercase tracking-widest border rounded-sm transition-all italic ${
+                                            data.bias === s ? 'bg-amber-500 text-black border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.3)]' : 'border-white/5 text-zinc-500 hover:bg-white/5'
+                                        }`}
+                                    >
+                                        {s.split(' ')[0]}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-3 bg-[#080808] border border-white/10 p-8 rounded-sm relative group text-left">
+                            <div className="absolute top-0 right-0 p-6 opacity-5 text-left"><Icon name="Calculator" size={50} /></div>
+                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-8 text-left text-zinc-400">Risk Calculator</p>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+                                <div className="space-y-2 text-left">
+                                    <label className="text-[9px] font-black text-zinc-500 uppercase">Equity ($)</label>
+                                    <input type="number" value={calc.account} onChange={e => setCalc({...calc, account: e.target.value})} className="w-full bg-black border border-white/10 rounded-sm px-4 py-3 text-sm text-white font-mono" />
+                                </div>
+                                <div className="space-y-2 text-left">
+                                    <label className="text-[9px] font-black text-zinc-500 uppercase">Risk %</label>
+                                    <input type="number" value={calc.risk} onChange={e => setCalc({...calc, risk: e.target.value})} className="w-full bg-black border border-white/10 rounded-sm px-4 py-3 text-sm text-amber-500 font-mono" />
+                                </div>
+                                <div className="space-y-2 text-left">
+                                    <label className="text-[9px] font-black text-zinc-500 uppercase">SL (Pips)</label>
+                                    <input type="number" value={calc.sl} onChange={e => setCalc({...calc, sl: e.target.value})} className="w-full bg-black border border-white/10 rounded-sm px-4 py-3 text-sm text-white font-mono" />
+                                </div>
+                                <div className="flex flex-col justify-end text-left">
+                                    <button onClick={calculatePosition} className="py-3 bg-white text-black text-[10px] font-black uppercase rounded-sm hover:bg-amber-500 transition-all italic">Calculate</button>
+                                </div>
+                            </div>
+                            {parseFloat(calc.result) > 0 && (
+                                <div className="mt-8 pt-8 border-t border-white/5 flex items-baseline gap-4 text-left">
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase">Target Lot Size:</span>
+                                    <span className="text-4xl font-black text-white italic underline decoration-amber-500 decoration-2">{calc.result}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-6 text-left">
+                        <div className="space-y-6 text-left">
+                            <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-[0.4em] italic flex items-center gap-4 text-left">
+                                <Icon name="Zap" size={15}/> The Daily Blueprint
+                            </h4>
+                            <textarea 
+                                value={data.narrative}
+                                onChange={e => setDailyData({...data, narrative: e.target.value})}
+                                placeholder="State the narrative for today's session..."
+                                className="w-full bg-[#080808] border border-white/10 rounded-sm p-8 text-sm h-72 focus:border-amber-500/40 outline-none resize-none leading-relaxed text-zinc-400 font-mono uppercase tracking-tight shadow-2xl text-left"
+                            ></textarea>
+                        </div>
+                        <div className="space-y-8 text-left">
+                            <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-[0.4em] italic text-left">The Code</h4>
+                            <div className="bg-[#080808] border border-white/10 rounded-sm p-10 space-y-8 relative overflow-hidden text-left">
+                                {['EXECUTE HARD STOPS', 'ZERO REVENGE DEPLOYMENTS', 'MANDATORY LOGGING'].map(rule => (
+                                    <label key={rule} className="flex items-center space-x-6 text-[11px] font-black uppercase text-zinc-500 hover:text-white cursor-pointer group transition-all italic tracking-tighter relative z-10 text-left">
+                                        <input type="checkbox" className="w-6 h-6 rounded-sm bg-black border-2 border-white/10 accent-amber-500 appearance-none checked:bg-amber-500 checked:border-amber-500 text-left" />
+                                        <span className="group-hover:translate-x-2 transition-transform text-left">{rule}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TradeVaultView = ({ trades, addTrade }) => {
+            const [newTrade, setNewTrade] = useState({ ticker: '', pnl: '', side: 'Long' });
+            return (
+                <div className="fade-in space-y-12 text-left">
+                    <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-white/5 pb-10 text-left">
+                        <div className="text-left">
+                            <h3 className="text-5xl font-black text-white italic uppercase tracking-tighter text-left text-left">Trade Vault</h3>
+                            <p className="text-[11px] text-zinc-600 font-black uppercase tracking-[0.4em] mt-2 italic text-left text-left text-left">Historical Performance Records</p>
+                        </div>
+                        <div className="mt-8 lg:mt-0 flex flex-wrap gap-4 items-center bg-zinc-900/30 p-4 rounded-sm border border-white/5 shadow-2xl text-left">
+                            <input value={newTrade.ticker} onChange={(e) => setNewTrade({...newTrade, ticker: e.target.value.toUpperCase()})} placeholder="ASSET" className="bg-black border border-white/10 px-4 py-2 text-[10px] font-black text-white w-32 outline-none focus:border-amber-500 text-left" />
+                            <input value={newTrade.pnl} onChange={(e) => setNewTrade({...newTrade, pnl: e.target.value})} placeholder="ROI" className="bg-black border border-white/10 px-4 py-2 text-[10px] font-black text-white w-40 outline-none focus:border-amber-500 text-left" />
+                            <select value={newTrade.side} onChange={(e) => setNewTrade({...newTrade, side: e.target.value})} className="bg-black border border-white/10 px-4 py-2 text-[10px] font-black text-amber-500 outline-none uppercase text-left"><option>Long</option><option>Short</option></select>
+                            <button onClick={() => { if(newTrade.ticker && newTrade.pnl) { addTrade({...newTrade, timestamp: 'Now'}); setNewTrade({ticker:'', pnl:'', side:'Long'})}}} className="bg-amber-500 text-black px-6 py-2 rounded-sm font-black text-[10px] uppercase italic tracking-widest hover:bg-white transition-all text-left">Log Deployment</button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 text-left">
+                        {trades.map((t, i) => (
+                            <div key={i} className="flex items-center justify-between px-10 py-8 bg-white/[0.01] border border-white/5 rounded-sm transition-all group shadow-xl hover:border-amber-500/20 text-left">
+                                <div className="flex items-center gap-8 text-left"><span className="text-[10px] font-mono text-zinc-700 font-black uppercase text-left">{t.timestamp}</span><span className="text-3xl font-black italic uppercase tracking-tighter text-white group-hover:text-amber-500 transition-colors text-left text-left text-left">{t.ticker}</span></div>
+                                <div className="flex items-center gap-12 text-left text-left"><div className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 border rounded-sm italic text-left ${t.pnl.includes('+') ? 'border-amber-500/20 text-amber-500 bg-amber-500/5' : 'border-red-900/30 text-red-700 bg-red-900/5'}`}>{t.side}</div><span className={`text-3xl font-mono font-black italic tracking-tighter text-left ${t.pnl.includes('+') ? 'text-green-500' : 'text-red-500'}`}>{t.pnl}</span></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const WeeklySyncView = ({ audit, setAudit }) => (
+            <div className="fade-in space-y-12 text-left text-left">
+                <div className="flex justify-between items-end border-b border-white/5 pb-10 text-left">
+                    <div className="text-left">
+                        <h3 className="text-5xl font-black text-white italic uppercase tracking-tighter text-left">Weekly Sync</h3>
+                        <p className="text-[11px] text-zinc-600 font-black uppercase tracking-[0.4em] mt-2 italic text-left text-left text-left">Culture & Psychological Audit</p>
+                    </div>
+                    <div className="text-right text-left">
+                        <span className="text-[10px] font-black text-amber-500 uppercase italic text-right text-left">State Score</span>
+                        <p className="text-4xl font-black italic text-white leading-none text-left">{( (audit.discipline + audit.patience + audit.clarity) / 3 ).toFixed(0)}%</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left text-left">
+                    <div className="bg-[#080808] border border-white/10 p-8 rounded-sm space-y-6 text-left">
+                        <div className="flex justify-between items-center text-left text-left">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-left text-left">Discipline</span>
+                            <span className="text-xl font-black italic text-amber-500 text-left">{audit.discipline}%</span>
+                        </div>
+                        <input type="range" min="0" max="100" value={audit.discipline} onChange={(e) => setAudit({...audit, discipline: parseInt(e.target.value)})} className="w-full text-left" />
+                    </div>
+                    <div className="bg-[#080808] border border-white/10 p-8 rounded-sm space-y-6 text-left">
+                        <div className="flex justify-between items-center text-left text-left">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-left text-left">Patience</span>
+                            <span className="text-xl font-black italic text-amber-500 text-left">{audit.patience}%</span>
+                        </div>
+                        <input type="range" min="0" max="100" value={audit.patience} onChange={(e) => setAudit({...audit, patience: parseInt(e.target.value)})} className="w-full text-left" />
+                    </div>
+                    <div className="bg-[#080808] border border-white/10 p-8 rounded-sm space-y-6 text-left text-left">
+                        <div className="flex justify-between items-center text-left text-left">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-left text-left text-left">Clarity</span>
+                            <span className="text-xl font-black italic text-amber-500 text-left text-left">{audit.clarity}%</span>
+                        </div>
+                        <input type="range" min="0" max="100" value={audit.clarity} onChange={(e) => setAudit({...audit, clarity: parseInt(e.target.value)})} className="w-full text-left" />
+                    </div>
+                </div>
+
+                <div className="bg-[#080808] border border-white/10 p-10 rounded-sm text-left">
+                    <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-[0.4em] mb-6 italic text-left text-zinc-400 text-left">Weekly Synthesis</h4>
+                    <textarea className="w-full bg-black/40 border border-white/10 rounded-sm p-6 text-sm h-48 focus:border-amber-500 outline-none font-mono uppercase tracking-tight shadow-xl text-left" placeholder="Log breakthroughs..." value={audit.notes} onChange={(e) => setAudit({...audit, notes: e.target.value})} />
+                </div>
+            </div>
+        );
+
+        const EducationView = () => {
+            const [selectedModule, setSelectedModule] = useState(null);
+            const [step, setStep] = useState(0);
+
+            const modules = [
+                { 
+                    id: 'foundation', 
+                    title: 'The Foundation', 
+                    icon: 'Shield',
+                    lessons: [
+                        { title: 'Market Structure 101', content: 'Price moves in trends. A bullish trend is defined by Higher Highs (HH) and Higher Lows (HL). Identifying these early is the key to Manor-level profit.', visual: 'HH / HL Sequence' },
+                        { title: 'Risk Sovereignty', content: 'Never risk more than 1% of your account on a single deployment. Capital preservation is the first rule of the Haus. Survival precedes success.', visual: 'The 1% Standard' },
+                        { title: 'Institutional Footprints', content: 'Look for imbalances. Large candles with "fair value gaps" show where the big money entered. We position where they deploy.', visual: 'FVG Identification' }
+                    ]
+                },
+                { id: 'alchemy', title: 'Advanced Alchemy', icon: 'Sparkles', lessons: [] },
+                { id: 'ledger', title: 'Wealth Ledger', icon: 'Lock', lessons: [] }
+            ];
+
+            if (selectedModule) {
+                const module = modules.find(m => m.id === selectedModule);
+                const currentLesson = module.lessons[step];
+
+                return (
+                    <div className="fade-in space-y-12 text-left text-zinc-100 text-left">
+                        <button onClick={() => { setSelectedModule(null); setStep(0); }} className="text-amber-500 uppercase font-black text-[10px] flex items-center gap-2 hover:underline text-left text-left">
+                            <Icon name="ChevronRight" size={14} className="rotate-180" /> Back to Archives
+                        </button>
+                        
+                        <div className="p-16 glass-panel rounded-sm relative overflow-hidden shadow-2xl text-left text-left">
+                            <div className="absolute top-0 right-0 p-8 text-white/[0.02] text-left"><Icon name={module.icon} size={200} /></div>
+                            <div className="relative z-10 text-left text-left">
+                                <p className="text-amber-500 font-black text-xs uppercase tracking-[0.4em] mb-4 italic text-left text-left text-left">Chapter {step + 1} / {module.lessons.length}</p>
+                                <h3 className="text-6xl font-black text-white italic uppercase tracking-tighter mb-8 text-left text-left">{currentLesson.title}</h3>
+                                <p className="text-zinc-400 text-xl leading-relaxed max-w-2xl font-medium italic opacity-90 mb-12 text-left text-left">{currentLesson.content}</p>
+                                
+                                <div className="p-10 border border-amber-500/20 bg-amber-500/5 rounded-sm mb-12 text-center text-white text-left">
+                                    <p className="text-zinc-500 uppercase text-[9px] font-black tracking-[0.5em] mb-4 text-center">Manor Visual Guide</p>
+                                    <p className="text-3xl font-black text-white italic tracking-tighter uppercase text-center">{currentLesson.visual}</p>
+                                </div>
+
+                                <div className="flex gap-4 text-left text-left">
+                                    <button 
+                                        disabled={step === 0}
+                                        onClick={() => setStep(step - 1)}
+                                        className="px-8 py-3 border border-white/10 rounded-sm text-[10px] font-black uppercase disabled:opacity-20 transition-all hover:bg-white/5 text-left"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button 
+                                        onClick={() => step < module.lessons.length - 1 ? setStep(step + 1) : setSelectedModule(null)}
+                                        className="px-12 py-3 bg-amber-500 text-black rounded-sm text-[10px] font-black uppercase transition-all hover:bg-white shadow-xl text-left"
+                                    >
+                                        {step < module.lessons.length - 1 ? 'Next Chapter' : 'Finish Intel'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="fade-in py-12 text-left space-y-12 text-left">
+                    <div className="p-16 bg-gradient-to-br from-zinc-900 to-black border border-white/10 rounded-sm relative overflow-hidden shadow-2xl text-left text-left">
+                        <div className="absolute top-0 right-0 p-16 text-white/5 pointer-events-none text-left text-left"><Icon name="Library" size={200} /></div>
+                        <div className="relative z-10 text-left text-left">
+                            <p className="text-amber-500 font-black text-xs uppercase tracking-[0.7em] mb-6 italic text-left text-left">Intel Archives</p>
+                            <h3 className="text-7xl font-black text-white italic uppercase tracking-tighter mb-10 leading-none text-left text-left">The Academy</h3>
+                            <p className="text-zinc-500 text-lg max-w-2xl uppercase font-black tracking-tighter mb-12 opacity-80 leading-tight italic text-left text-left text-zinc-100">Blueprint for sovereignty. Master the data. Build the legacy.</p>
+                            <button className="bg-white text-black font-black text-[11px] uppercase px-10 py-4 tracking-[0.3em] hover:bg-amber-500 transition-all italic shadow-2xl text-left">Enter Archives</button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10 text-left">
+                        {modules.map((m, i) => (
+                            <div key={m.id} onClick={() => m.lessons.length > 0 && setSelectedModule(m.id)} className={`group p-10 bg-[#080808] border border-white/10 rounded-sm hover:border-amber-500/50 transition-all cursor-pointer relative overflow-hidden text-left text-left ${m.lessons.length === 0 ? 'opacity-30 cursor-not-allowed text-left' : ''}`}>
+                                <div className="absolute top-0 right-0 p-4 opacity-[0.02] text-white text-left"><Icon name={m.icon} size={80}/></div>
+                                <div className="text-zinc-800 text-7xl font-black mb-6 italic group-hover:text-amber-500 transition-colors opacity-30 text-left">0{i+1}</div>
+                                <h4 className="text-white font-black text-sm uppercase tracking-[0.2em] mb-4 italic text-left">{m.title}</h4>
+                                <p className="text-zinc-600 text-[10px] leading-relaxed uppercase font-black tracking-widest italic text-left text-left">{m.lessons.length > 0 ? 'Course Material Ready' : 'Content Encrypted'}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
